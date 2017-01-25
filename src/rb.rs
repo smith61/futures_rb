@@ -1,3 +1,4 @@
+//! Module containing the implementation of a SPSC RingBuffer built on futures_rs.
 
 use futures::{
     Async,
@@ -13,22 +14,26 @@ use std::sync::{
     Mutex
 };
 
+/// The sending end of the SPSC RingBuffer.
 #[derive( Debug )]
 pub struct Sender< T : Copy + Default > {
     inner : Arc< Mutex< RingBuffer< T > > >
 }
 
+/// Errors generated while sending elements to the RingBuffer.
 #[derive( Debug )]
 pub enum SendError {
     ReceiverDropped
 }
 
+/// Future that completes when at least one element has been written to the RingBuffer.
 #[derive( Debug )]
 pub struct WriteSome< 'a, T : Copy + Default + 'a > {
     sender : Option< Sender< T > >,
     buffer : &'a [ T ]
 }
 
+/// Future that completes when the entire buffer has been filled from the RingBuffer.
 #[derive( Debug )]
 pub struct WriteAll< 'a, T : Copy + Default + 'a > {
     sender        : Option< Sender< T > >,
@@ -36,23 +41,26 @@ pub struct WriteAll< 'a, T : Copy + Default + 'a > {
     elems_written : usize
 }
 
-
+/// The receiving end of the SPSC RingBuffer.
 #[derive( Debug )]
 pub struct Receiver< T : Copy + Default > {
     inner : Arc< Mutex< RingBuffer< T > > >
 }
 
+/// Errors generated when reading elements from the RingBuffer.
 #[derive( Debug )]
 pub enum ReadError {
     SenderDropped
 }
 
+/// Future that completes when at least one element has been read from the RingBuffer.
 #[derive( Debug )]
 pub struct ReadSome< 'a, T : Copy + Default + 'a > {
     receiver : Option< Receiver< T > >,
     buffer   : &'a mut [ T ]
 }
 
+/// Future that completes when the entire buffer has been read from the RingBuffer.
 #[derive( Debug )]
 pub struct ReadAll< 'a, T : Copy + Default + 'a > {
     receiver   : Option< Receiver< T > >,
@@ -86,6 +94,10 @@ struct ParkedTask {
     task : Option< task::Task >
 }
 
+/// Creates a new RingBuffer with the given internal buffer size.
+///
+/// # Panics
+/// If buffer_size == 0.
 pub fn create_buffer< T : Copy + Default >( buffer_size : usize ) -> ( Sender< T >, Receiver< T > ) {
     let inner = Arc::new( Mutex::new( RingBuffer::new( buffer_size ) ) );
 
@@ -94,10 +106,16 @@ pub fn create_buffer< T : Copy + Default >( buffer_size : usize ) -> ( Sender< T
 
 impl < T : Copy + Default > Sender< T > {
 
+    /// Attempts to write as many elements to the RingBuffer without blocking.
+    ///
+    /// # Errors
+    /// If there is no Receiver.
     pub fn write( &mut self, buffer : &[ T ] ) -> Result< usize, SendError > {
         self.inner.lock( ).unwrap( ).write_some( buffer )
     }
 
+    /// Attempts to write at least one element to the RingBuffer, returning a future
+    /// that completes when at least one element has been written.
     pub fn write_some< 'a, E >( self, buffer : &'a [ T ] ) -> WriteSome< 'a, T > {
         WriteSome {
             sender : Some( self ),
@@ -105,6 +123,8 @@ impl < T : Copy + Default > Sender< T > {
         }
     }
 
+    /// Attempts to write the entire buffer to the RingBuffer, returning a future that
+    /// completes when the entire buffer has been written.
     pub fn write_all< 'a >( self, buffer : &'a [ T ] ) -> WriteAll< 'a, T > {
         WriteAll {
             sender        : Some( self ),
@@ -113,6 +133,9 @@ impl < T : Copy + Default > Sender< T > {
         }
     }
 
+    /// Tests to see if a call to write would write at least one element to the RingBuffer.
+    ///
+    /// If sender is not ready, the current task is parked and later unparked when the above is true.
     pub fn poll_write( &mut self ) -> Async< ( ) > {
         self.inner.lock( ).unwrap( ).poll_write( )
     }
@@ -205,10 +228,16 @@ impl < 'a, T : Copy + Default > Future for WriteAll< 'a, T > {
 
 impl < T : Copy + Default > Receiver< T > {
 
+    /// Attempts to read as many elements from the RingBuffer as possible without blocking.
+    ///
+    /// # Errors
+    /// If the buffer is empty and there is no Sender.
     pub fn read( &mut self, buffer : &mut [ T ] ) -> Result< usize, ReadError > {
         self.inner.lock( ).unwrap( ).read_some( buffer )
     }
 
+    /// Attempts to read at least one element from the RingBuffer, returning a future that
+    /// completes when at least one element has been read.
     pub fn read_some< 'a >( self, buffer : &'a mut [ T ] ) -> ReadSome< 'a, T >  {
         ReadSome {
             receiver : Some( self ),
@@ -216,6 +245,8 @@ impl < T : Copy + Default > Receiver< T > {
         }
     }
 
+    /// Attempts to read the entire buffer from the RingBuffer, returning a future that
+    /// completes when at least the entire buffer has been read.
     pub fn read_all< 'a >( self, buffer : &'a mut [ T ] ) -> ReadAll< 'a, T > {
         ReadAll {
             receiver   : Some( self ),
@@ -224,6 +255,9 @@ impl < T : Copy + Default > Receiver< T > {
         }
     }
 
+    /// Tests to see if a call to read will read at least one element from the RingBuffer.
+    ///
+    /// If receiver is not ready, the current task is parked and later unparked when the above is true.
     pub fn poll_read( &mut self ) -> Async< ( ) > {
         self.inner.lock( ).unwrap( ).poll_read( )
     }
