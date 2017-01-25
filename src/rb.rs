@@ -454,15 +454,12 @@ impl ParkedTask {
 
     fn park( &mut self ) {
         let task = task::park( );
-        trace!( "Parking task {:?}", task );
 
         self.task = Some( task );
     }
 
     fn unpark( &mut self ) {
         if let Some( parked_task ) = self.task.take( ) {
-            trace!( "Unparking task {:?}", parked_task );
-
             parked_task.unpark( );
         }
     }
