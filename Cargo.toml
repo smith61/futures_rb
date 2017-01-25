@@ -3,5 +3,15 @@ name = "futures_rb"
 version = "0.1.0"
 authors = ["Jacob Smith <jacob101607@yahoo.com>"]
 
+license = "MIT"
+description = """
+A SPSC RingBuffer built on top of futures_rs.
+"""
+
+homepage   = "https://github.com/smith61/futures_rb"
+repository = "https://github.com/smith61/futures_rb"
+readme     = "README.md"
+
 [dependencies]
 futures = "0.1"
+log = "0.3"
