@@ -16,7 +16,7 @@ use std::sync::{
 
 /// The sending end of the SPSC RingBuffer.
 #[derive( Debug )]
-pub struct Sender< T : Copy + Default > {
+pub struct Sender< T : Clone + Default > {
     inner : Arc< Mutex< RingBuffer< T > > >
 }
 
@@ -28,14 +28,14 @@ pub enum SendError {
 
 /// Future that completes when at least one element has been written to the RingBuffer.
 #[derive( Debug )]
-pub struct WriteSome< 'a, T : Copy + Default + 'a > {
+pub struct WriteSome< 'a, T : Clone + Default + 'a > {
     sender : Option< Sender< T > >,
     buffer : &'a [ T ]
 }
 
 /// Future that completes when the entire buffer has been filled from the RingBuffer.
 #[derive( Debug )]
-pub struct WriteAll< 'a, T : Copy + Default + 'a > {
+pub struct WriteAll< 'a, T : Clone + Default + 'a > {
     sender        : Option< Sender< T > >,
     buffer        : &'a [ T ],
     elems_written : usize
@@ -43,7 +43,7 @@ pub struct WriteAll< 'a, T : Copy + Default + 'a > {
 
 /// The receiving end of the SPSC RingBuffer.
 #[derive( Debug )]
-pub struct Receiver< T : Copy + Default > {
+pub struct Receiver< T : Clone + Default > {
     inner : Arc< Mutex< RingBuffer< T > > >
 }
 
@@ -55,14 +55,14 @@ pub enum ReadError {
 
 /// Future that completes when at least one element has been read from the RingBuffer.
 #[derive( Debug )]
-pub struct ReadSome< 'a, T : Copy + Default + 'a > {
+pub struct ReadSome< 'a, T : Clone + Default + 'a > {
     receiver : Option< Receiver< T > >,
     buffer   : &'a mut [ T ]
 }
 
 /// Future that completes when the entire buffer has been read from the RingBuffer.
 #[derive( Debug )]
-pub struct ReadAll< 'a, T : Copy + Default + 'a > {
+pub struct ReadAll< 'a, T : Clone + Default + 'a > {
     receiver   : Option< Receiver< T > >,
     buffer     : &'a mut [ T ],
     elems_read : usize
@@ -70,7 +70,7 @@ pub struct ReadAll< 'a, T : Copy + Default + 'a > {
 
 
 #[derive( Debug )]
-struct RingBuffer< T : Copy + Default > {
+struct RingBuffer< T : Clone + Default > {
     buffer       : Vec< T >,
     read_offset  : usize,
     size         : usize,
@@ -98,13 +98,13 @@ struct ParkedTask {
 ///
 /// # Panics
 /// If buffer_size == 0.
-pub fn create_buffer< T : Copy + Default >( buffer_size : usize ) -> ( Sender< T >, Receiver< T > ) {
+pub fn create_buffer< T : Clone + Default >( buffer_size : usize ) -> ( Sender< T >, Receiver< T > ) {
     let inner = Arc::new( Mutex::new( RingBuffer::new( buffer_size ) ) );
 
     ( Sender { inner : inner.clone( ) }, Receiver { inner : inner } )
 }
 
-impl < T : Copy + Default > Sender< T > {
+impl < T : Clone + Default > Sender< T > {
 
     /// Attempts to write as many elements to the RingBuffer without blocking.
     ///
@@ -142,7 +142,7 @@ impl < T : Copy + Default > Sender< T > {
 
 }
 
-impl < T : Copy + Default > Drop for Sender< T > {
+impl < T : Clone + Default > Drop for Sender< T > {
 
     fn drop( &mut self ) {
         self.inner.lock( ).unwrap( ).close_sender( );
@@ -150,7 +150,7 @@ impl < T : Copy + Default > Drop for Sender< T > {
 
 }
 
-impl < 'a, T : Copy + Default > Future for WriteSome< 'a, T > {
+impl < 'a, T : Clone + Default > Future for WriteSome< 'a, T > {
 
     type Item  = ( usize, Sender< T > );
     type Error = ( SendError, Sender< T > );
@@ -185,7 +185,7 @@ impl < 'a, T : Copy + Default > Future for WriteSome< 'a, T > {
 
 }
 
-impl < 'a, T : Copy + Default > Future for WriteAll< 'a, T > {
+impl < 'a, T : Clone + Default > Future for WriteAll< 'a, T > {
 
     type Item  = Sender< T >;
     type Error = ( SendError, Sender< T > );
@@ -226,7 +226,7 @@ impl < 'a, T : Copy + Default > Future for WriteAll< 'a, T > {
 
 }
 
-impl < T : Copy + Default > Receiver< T > {
+impl < T : Clone + Default > Receiver< T > {
 
     /// Attempts to read as many elements from the RingBuffer as possible without blocking.
     ///
@@ -264,7 +264,7 @@ impl < T : Copy + Default > Receiver< T > {
 
 }
 
-impl < T : Copy + Default > Drop for Receiver< T > {
+impl < T : Clone + Default > Drop for Receiver< T > {
 
     fn drop( &mut self ) {
         self.inner.lock( ).unwrap( ).close_receiver( );
@@ -272,7 +272,7 @@ impl < T : Copy + Default > Drop for Receiver< T > {
 
 }
 
-impl < 'a, T : Copy + Default + 'a > Future for ReadSome< 'a, T > {
+impl < 'a, T : Clone + Default + 'a > Future for ReadSome< 'a, T > {
 
     type Item  = ( usize, Receiver< T > );
     type Error = ( ReadError, Receiver< T > );
@@ -308,7 +308,7 @@ impl < 'a, T : Copy + Default + 'a > Future for ReadSome< 'a, T > {
 
 }
 
-impl < 'a, T : Copy + Default + 'a > Future for ReadAll< 'a, T > {
+impl < 'a, T : Clone + Default + 'a > Future for ReadAll< 'a, T > {
 
     type Item  = Receiver< T >;
     type Error = ( ReadError, Receiver< T > );
@@ -349,7 +349,7 @@ impl < 'a, T : Copy + Default + 'a > Future for ReadAll< 'a, T > {
 
 }
 
-impl < T : Copy + Default > RingBuffer< T > {
+impl < T : Clone + Default > RingBuffer< T > {
 
     fn new( buffer_size : usize ) -> Self {
         if buffer_size == 0 {
@@ -390,8 +390,8 @@ impl < T : Copy + Default > RingBuffer< T > {
         let tail_elems = elems_to_write - head_elems;
 
 
-        self.buffer[ write_ptr .. write_ptr + head_elems ].copy_from_slice( &buffer[ .. head_elems ] );
-        self.buffer[ .. tail_elems ].copy_from_slice( &buffer[ head_elems .. elems_to_write ] );
+        self.buffer[ write_ptr .. write_ptr + head_elems ].clone_from_slice( &buffer[ .. head_elems ] );
+        self.buffer[ .. tail_elems ].clone_from_slice( &buffer[ head_elems .. elems_to_write ] );
 
         self.size += elems_to_write;
         self.parked_read.unpark( );
@@ -412,8 +412,8 @@ impl < T : Copy + Default > RingBuffer< T > {
         let head_elems = cmp::min( elems_to_read, buffer_size - read_ptr );
         let tail_elems = elems_to_read - head_elems;
 
-        buffer[ .. head_elems ].copy_from_slice( &self.buffer[ read_ptr .. read_ptr + head_elems ] );
-        buffer[ head_elems .. elems_to_read ].copy_from_slice( &self.buffer[ .. tail_elems ] );
+        buffer[ .. head_elems ].clone_from_slice( &self.buffer[ read_ptr .. read_ptr + head_elems ] );
+        buffer[ head_elems .. elems_to_read ].clone_from_slice( &self.buffer[ .. tail_elems ] );
 
         self.read_offset = ( read_ptr + elems_to_read ) % buffer_size;
         self.size -= elems_to_read;
